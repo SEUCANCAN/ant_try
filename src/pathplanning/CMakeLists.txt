@@ -14,11 +14,12 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   geometry_msgs
+  pathplaning_msgs
 )
 
 ## Generate messages in the 'msg' folder
 
-add_message_files( FILES  track_path.msg)
+#add_message_files( FILES  track_path.msg)
 
 ## Generate added messages and services with any dependencies listed here
  generate_messages(

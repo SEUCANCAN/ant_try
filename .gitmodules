@@ -1,0 +1,3 @@
+[submodule "src/pathplan_msgs"]
+	path = src/pathplan_msgs
+	url = https://github.com/CastielLiu/pathplan_msgs.git

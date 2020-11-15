@@ -7,7 +7,7 @@
 #include <vector>
 #include "planfunction.h"
 #include "geometry_msgs/Pose2D.h"
-#include "pathplanning/track_path.h"
+#include "pathplaning_msgs/expected_path.h"
 
 using namespace ros;
 Road_info Road[24];
@@ -15,7 +15,7 @@ vehicleinfo end_point;
 int receive_ok = 0;
 int once = 1;
 Publisher track_path_pub;
-pathplanning::track_path real_path;
+pathplaning_msgs::expected_path real_path;
 
 //target
 void targetpointCallback(const nav_msgs::Odometry::ConstPtr& end_position)
@@ -43,8 +43,11 @@ void vehicleinfoCallback(const nav_msgs::Odometry::ConstPtr& msg)
 			temp.x = track_path[i].x;
 			temp.y = track_path[i].y;
 			temp.theta = track_path[i].yaw;
-			real_path.track_path.push_back(temp);
+			real_path.points.push_back(temp);
 		}
+        real_path.direction = real_path.DIRECTION_DRIVE;
+        real_path.path_resolution = 0.1 ; 
+        real_path.expect_speed = 20 ; 
 		ROS_INFO("%d",track_path.size());
 		track_path_pub.publish(real_path);
 		once = 0;
@@ -59,7 +62,7 @@ int main(int argc, char **argv)
     Road_init(Road);
     ros::Subscriber target = n.subscribe("end_position", 1000, targetpointCallback);
     ros::Subscriber sub = n.subscribe("/ll2utm_odom", 1000, vehicleinfoCallback); //subscribe from gps
-    track_path_pub = n.advertise<pathplanning::track_path>("track_path", 1000 );
+    track_path_pub = n.advertise<pathplaning_msgs::expected_path>("track_path", 1000 );
     ros::spin();
 
     return 0;

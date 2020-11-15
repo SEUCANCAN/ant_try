@@ -64,9 +64,7 @@ std::vector<gpsMsg_t>find_track_path(vehicleinfo position, vehicleinfo end_point
         if(path_ok[index].cost < min_cost)
         {
             min_cost = path_ok[index].cost;
-            min_index = index;
-            
-            
+            min_index = index;   
         }
     }
     mincost_path = path_ok[min_index];
@@ -80,8 +78,6 @@ std::vector<gpsMsg_t>find_track_path(vehicleinfo position, vehicleinfo end_point
     ROS_INFO("%d",track_path.size());
     return track_path;
 }
-
-
 
 
 void pointpath_to_track_path(std::vector<gpsMsg_t>& track_path, pathwith_modlepoint mincost_path, Road_info Road[])
@@ -128,7 +124,7 @@ void pointpath_to_track_path(std::vector<gpsMsg_t>& track_path, pathwith_modlepo
             gpsMsg_t temp ;
             temp.x = offset * sin(yaw) + x;
             temp.y = -offset * cos(yaw) + y;
-            temp.yaw = yaw;
+            temp.yaw = (sqrt(pow(offset,2)) / offset) * yaw;
             track_path.push_back(temp); 
             //ROS_INFO("%d",track_path.size());
             ROS_INFO("road id is %d , x is %f , y is %f , yaw is % f ",(int)roadtrans[i].road_id , temp.x , temp.y , temp.yaw );
@@ -177,6 +173,10 @@ std::vector<pathwith_modlepoint> modle_point_path_generate(std::vector<pathwith_
                if(path_try[i-1].mod_point[1+num_try].y != path_try[i-1].mod_point[1+num_try-1].y)
                {
                    cost_turn = 0.8;
+               }
+               if(path_try[i-1].mod_point[1+num_try-1].x == (path_try[i-1].mod_point[1+num_try].x-1))
+               {
+                   cost_turn = 2;
                }
                new_pointpath.cost = road_cost[2] + path_try[i-1].cost + cost_turn;
                //ROS_INFO("%f , %f , %f",road_cost[0], road_cost[1], road_cost[2]);
@@ -229,6 +229,10 @@ std::vector<pathwith_modlepoint> modle_point_path_generate(std::vector<pathwith_
                {
                    cost_turn = 0.8;
                }
+               if(path_try[i-1].mod_point[1+num_try-1].x == (path_try[i-1].mod_point[1+num_try].x+1))
+               {
+                   cost_turn = 2;
+               }
                new_pointpath.cost = road_cost[2] + path_try[i-1].cost + cost_turn;
                path_try.push_back(new_pointpath);
                if ((temp_point.x == target_point[0]) && (temp_point.y == target_point[1]))
@@ -278,6 +282,10 @@ std::vector<pathwith_modlepoint> modle_point_path_generate(std::vector<pathwith_
                if(path_try[i-1].mod_point[1+num_try].x != path_try[i-1].mod_point[1+num_try-1].x)
                {
                    cost_turn = 0.8;
+               }
+               if(path_try[i-1].mod_point[1+num_try-1].y == (path_try[i-1].mod_point[1+num_try].y-1))
+               {
+                   cost_turn = 2;
                }
                new_pointpath.cost = road_cost[2] + path_try[i-1].cost + cost_turn;
                path_try.push_back(new_pointpath);
@@ -329,7 +337,10 @@ std::vector<pathwith_modlepoint> modle_point_path_generate(std::vector<pathwith_
                {
                   cost_turn = 0.8;
                }
-
+               if(path_try[i-1].mod_point[1+num_try-1].y == (path_try[i-1].mod_point[1+num_try].y+1))
+               {
+                   cost_turn = 2;
+               }
                new_pointpath.cost = road_cost[2] + path_try[i-1].cost + cost_turn;
                path_try.push_back(new_pointpath);
                if ((temp_point.x == target_point[0]) && (temp_point.y == target_point[1]))
@@ -373,6 +384,8 @@ int findnearRoad(vehicleinfo position, Road_info Road[],int road_point[])
 {
     float min_dis = 1000;
     int min_id = 1;
+    float min_road_yaw = 0;
+    int near_point_id = 0;
     for(int road_id = 1; road_id <= 24; road_id++)
     {
         for (int num_point = 1; num_point <= Road[road_id-1].centerline.size(); num_point++)
@@ -383,12 +396,23 @@ int findnearRoad(vehicleinfo position, Road_info Road[],int road_point[])
             {
                 min_dis = dis;
                 min_id = Road[road_id-1].ID;
+                min_road_yaw = Road[road_id - 1].centerline[num_point-1].yaw;
+                near_point_id = num_point - 1;
             }
         }     
     }
+    float direction = sqrt(pow(position.yaw - Road[min_id -1].centerline[near_point_id].yaw,2));
+    if ((direction < 1.57)||(direction > 4.71))
+    {
+       ID_to_point(min_id,road_point);
+       return min_id;
+    }
+    else
+    {
+        ID_to_point((-1*min_id),road_point);
+        return min_id;
+    }
     
-    ID_to_point(min_id,road_point);
-    return min_id;
 }
 
 void point_to_Road(modle_point point_first, modle_point point_second, Road_info Road[], float road_cost[])
@@ -413,24 +437,49 @@ void point_to_Road(modle_point point_first, modle_point point_second, Road_info 
 
 void ID_to_point(int id,int road_point[])
 {
-    int a = id % 7;
-    int b = id / 7;
-    if (a == 0)
+    if(id >0)
     {
-        road_point[0] = 4; road_point[1] = b; 
-        road_point[2] = 4; road_point[3] = b+1;
-    }
-    else if (a <= 3)
-    {
-        road_point[0] = a; road_point[1] = b+1; 
-        road_point[2] = a+1; road_point[3] = b+1;
+       int a = id % 7;
+       int b = id / 7;
+       if (a == 0)
+       {
+          road_point[0] = 4; road_point[1] = b; 
+          road_point[2] = 4; road_point[3] = b+1;
+       }
+       else if (a <= 3)
+       {
+          road_point[0] = a; road_point[1] = b+1; 
+         road_point[2] = a+1; road_point[3] = b+1;
+       }
+       else
+       {
+          road_point[0] = a-3; road_point[1] = b+1;
+          road_point[2] = a-3; road_point[3] = b+2;
+       }
+       return;
     }
     else
     {
-        road_point[0] = a-3; road_point[1] = b+1;
-        road_point[2] = a-3; road_point[3] = b+2;
+       id = id * (-1);
+       int a = id % 7;
+       int b = id / 7;
+       if (a == 0)
+       {
+          road_point[2] = 4; road_point[3] = b; 
+          road_point[0] = 4; road_point[1] = b+1;
+       }
+       else if (a <= 3)
+       {
+          road_point[2] = a; road_point[3] = b+1; 
+          road_point[0] = a+1; road_point[1] = b+1;
+       }
+       else
+       {
+          road_point[2] = a-3; road_point[3] = b+1;
+          road_point[0] = a-3; road_point[1] = b+2;
+       }
+       return;
     }
-    return;
 }
 
 
