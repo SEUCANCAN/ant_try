@@ -9,15 +9,27 @@
 #include <math.h>
 #include <stdlib.h>
 
-float road_offset[24][3] = {1,3,5,1,3,5,1,3,5,   1,3,3,1,3,3,1,3,3,1,3,3,   1,3,5,1,3,5,1,3,5,   1,3,3,1,3,3,1,3,3,1,3,3,   1,3,5,1,3,5,1,3,5,   1,3,3,1,3,3,1,3,3,1,3,3,   1,3,5,1,3,5, 1,3,5};
-float road_cost[24][2] = {1,1,1,1,1,1,     1,1,1,1,1,1,1,1,  1,1,1,1,1,1,  1,1,1,1,1,1,1,1,  1,1,1,1,1,1,  1,1,1,1,1,1,1,1,     1,1,1,1,1,1};
+float road_offset[24][3] = {1,3,5, 1,3,5, 1,3,5,        //row1-3
+							1,3,3, 1,3,3, 1,3,3, 1,3,3,  //col4-7
+							3,3,3, 0,0,0, 1,3,5,        //row8-10
+							1,3,3, 1,3,3, 0,0,0, 1,3,3,  //col11-14
+							1,3,5, 1,3,5, 1,3,5,        //row15-17
+							1,3,3, 1,3,3, 1,3,3, 1,3,3,  //col18-21
+							1,3,5, 1,3,5,  1,3,5};      //row22-24
+float road_cost[24][2] = {1,1,1,1,1,1,     
+						  1,1,1,1,1,1,1,1,  
+						  1,1,1,1,1,1,  
+						  100,100,1,1,1,1,1,1,  
+						  1,1,100,100,1,1,  
+						  1,1,1,1,1,1,1,1,     
+						  1,1,1,1,1,1};
 
 
 void Road_init(Road_info Road[])
 {
      for (int seq = 1 ; seq <= 24 ;seq++)
      {
-     std::string ROAD_NAME = "/home/cancan/ant_try/src/pathplanning/src/road_info/ROAD" + std::to_string(seq) + ".txt" ;
+     std::string ROAD_NAME = "/home/seu/projects/ant_try/src/pathplanning/src/road_info/ROAD" + std::to_string(seq) + ".txt" ;
      loadPathPoints(ROAD_NAME,Road[seq-1].centerline);
      Road[seq-1].ID = seq;
      Road[seq-1].leftoffset = road_offset[seq-1][0];
@@ -92,6 +104,10 @@ void pointpath_to_track_path(std::vector<gpsMsg_t>& track_path, pathwith_modlepo
         point_to_Road(mincost_path.mod_point[i], mincost_path.mod_point[i+1], Road, road_cost);
         roadoffset temp;
         temp.road_id = road_cost[1];
+        if(road_cost[0] < 0)
+        {
+            reverse(Road[(int)temp.road_id-1].centerline.begin(),Road[(int)temp.road_id-1].centerline.end());
+        }
         if(((x1 == x2)&&(x3 ==x2)) || ((y1 == y2)&&(y3 == y2)))
         {
             temp.road_offset = road_cost[0] * Road[(int)road_cost[1]-1].middleoffset;
@@ -109,22 +125,28 @@ void pointpath_to_track_path(std::vector<gpsMsg_t>& track_path, pathwith_modlepo
     }
     float last_road_cost[3];
     point_to_Road(mincost_path.mod_point[mincost_path.mod_point.size()-2], mincost_path.mod_point[mincost_path.mod_point.size()-1], Road, last_road_cost);
+    if(last_road_cost[0] < 0)
+        {
+            reverse(Road[(int)last_road_cost[1]-1].centerline.begin(),Road[(int)last_road_cost[1]-1].centerline.end());
+        }
     roadoffset last_temp;
     last_temp.road_id = last_road_cost[1];
-    last_temp.road_offset = last_road_cost[0] * Road[(int)last_road_cost[1]].middleoffset;
+    last_temp.road_offset = last_road_cost[0] * Road[(int)last_road_cost[1]-1].middleoffset;
     roadtrans.push_back(last_temp); 
     for (int i = 0; i < roadtrans.size(); i++)
     {
+    	ROS_INFO("id: %d \t offset: %.1f",roadtrans[i].road_id, roadtrans[i].road_offset);
+    	float offset = roadtrans[i].road_offset;
         for (int j = 0; j<Road[(int)roadtrans[i].road_id - 1].centerline.size(); j++)
         {
             float x = Road[(int)roadtrans[i].road_id - 1].centerline[j].x;
             float y = Road[(int)roadtrans[i].road_id - 1].centerline[j].y;
             float yaw = Road[(int)roadtrans[i].road_id - 1].centerline[j].yaw;
-            float offset = roadtrans[i].road_offset;
+            
             gpsMsg_t temp ;
             temp.x = offset * sin(yaw) + x;
             temp.y = -offset * cos(yaw) + y;
-            temp.yaw = (sqrt(pow(offset,2)) / offset) * yaw;
+            temp.yaw = offset >0 ? yaw : yaw+M_PI;     
             track_path.push_back(temp); 
             //ROS_INFO("%d",track_path.size());
             ROS_INFO("road id is %d , x is %f , y is %f , yaw is % f ",(int)roadtrans[i].road_id , temp.x , temp.y , temp.yaw );
@@ -382,7 +404,7 @@ std::vector<pathwith_modlepoint> modle_point_path_generate(std::vector<pathwith_
 
 int findnearRoad(vehicleinfo position, Road_info Road[],int road_point[]) 
 {
-    float min_dis = 1000;
+    float min_dis = 10000;
     int min_id = 1;
     float min_road_yaw = 0;
     int near_point_id = 0;
@@ -396,6 +418,7 @@ int findnearRoad(vehicleinfo position, Road_info Road[],int road_point[])
             {
                 min_dis = dis;
                 min_id = Road[road_id-1].ID;
+                ROS_INFO("%d , %f" , min_id , min_dis);
                 min_road_yaw = Road[road_id - 1].centerline[num_point-1].yaw;
                 near_point_id = num_point - 1;
             }
